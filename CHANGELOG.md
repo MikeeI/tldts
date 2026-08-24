@@ -1,3 +1,26 @@
+# v7.4.11 (Mon Aug 24 2026)
+
+#### :scroll: Update Public Suffix List
+
+- `tldts-experimental`, `tldts`
+  - Update upstream public suffix list [#2655](https://github.com/remusao/tldts/pull/2655) ([@remusao](https://github.com/remusao))
+
+#### :nut_and_bolt: Dependencies
+
+- Bump brace-expansion from 1.1.16 to 1.1.18 [#2647](https://github.com/remusao/tldts/pull/2647) ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump rollup from 4.62.2 to 4.62.3 [#2643](https://github.com/remusao/tldts/pull/2643) ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump @types/node from 26.1.0 to 26.1.2 [#2645](https://github.com/remusao/tldts/pull/2645) ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump brace-expansion from 1.1.14 to 1.1.16 [#2641](https://github.com/remusao/tldts/pull/2641) ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump typescript-eslint from 8.62.1 to 8.65.0 [#2640](https://github.com/remusao/tldts/pull/2640) ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump nx from 22.4.4 to 22.7.8 [#2646](https://github.com/remusao/tldts/pull/2646) ([@dependabot[bot]](https://github.com/dependabot[bot]))
+
+#### Authors: 2
+
+- [@dependabot[bot]](https://github.com/dependabot[bot])
+- Rémi ([@remusao](https://github.com/remusao))
+
+---
+
 # v7.4.10 (Thu Jul 30 2026)
 
 #### :scroll: Update Public Suffix List
