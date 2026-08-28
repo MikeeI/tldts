@@ -100,10 +100,11 @@ interface Profile {
 }
 
 interface Command {
-  implementations: ImplementationName[];
   groups: InputGroup[];
+  implementations: ImplementationName[];
   methods: MethodName[];
   profile: Profile;
+  quick: boolean;
 }
 
 interface Sample {
@@ -174,8 +175,7 @@ function printHelp(): void {
 
 Without filters, the benchmark runs the original upstream method, input, and option matrix.
 Filters retain that matrix within the selected methods and groups and use longer measurements.
-Quick mode runs three short trials for the current implementation and
-getDomainWithoutSuffix unless a method is selected.
+Quick mode runs all methods with default options, using three short trials for the current implementation.
 
 Options:
   --method=<names>          Limit the matrix to comma-separated methods
@@ -250,9 +250,7 @@ function parseCommandLine(): Command | null {
 
   const requestedMethods = values.method
     ? parseList(values.method)
-    : values.quick
-      ? ['getDomainWithoutSuffix']
-      : [...FULL_METHODS];
+    : [...FULL_METHODS];
   const requestedGroups = values.group
     ? parseList(values.group)
     : [...INPUT_GROUPS];
@@ -297,6 +295,7 @@ function parseCommandLine(): Command | null {
       : values.method || values.group || values.implementation
         ? FOCUS_PROFILE
         : STANDARD_PROFILE,
+    quick: values.quick ?? false,
   };
 }
 
@@ -497,11 +496,12 @@ function buildCases(
 
   for (const method of command.methods) {
     for (const group of command.groups) {
-      for (const options of OPTIONS_BY_GROUP[group]) {
+      const options = command.quick ? [undefined] : OPTIONS_BY_GROUP[group];
+      for (const option of options) {
         const selected = selectImplementations(
           method,
           group,
-          options,
+          option,
           command.implementations,
         );
         if (selected.length === 0) continue;
@@ -510,7 +510,7 @@ function buildCases(
           group,
           inputs: inputs[group],
           method,
-          options,
+          options: option,
           selected,
         });
       }
