@@ -22,5 +22,5 @@ The drawback is that there might be some _unlikely_ false positive (think bloom 
 
 For more details, check the documentation from the following files:
 
-- [building](https://github.com/remusao/tldts/blob/master/bin/builders/hashes.ts)
+- [building](https://github.com/remusao/tldts/blob/master/packages/tldts-utils/src/builders/hashes.ts)
 - [lookups](./src/packed-hashes.ts)

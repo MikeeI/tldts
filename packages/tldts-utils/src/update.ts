@@ -28,7 +28,7 @@ export default function () {
   writeFileSync(
     findBaseDir('./tldts-experimental/src/data/hashes.ts'),
     `
-// Code automatically generated using ./bin/builders/hashes.ts
+// Code automatically generated using packages/tldts-utils/src/builders/hashes.ts
 export default new Uint32Array([${Array.from(packed).toString()}]);
 `,
     'utf-8',
