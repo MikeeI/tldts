@@ -12,12 +12,14 @@ const implementations = [
 
 const METHODS = ['getDomain', 'getPublicSuffix', 'getSubdomain'];
 const MAX_INPUTS = 10_000;
-const SAMPLE_DURATION_MS = 500;
+const SAMPLE_DURATION_MS = 750;
 const TRIALS = 3;
 const HIGH_SPREAD_PERCENT = 15;
+const MAX_TOTAL_DURATION_MS = 50_000;
 
 function measure(fn, inputs) {
   for (const input of inputs) fn(input);
+  global.gc();
 
   const startedAt = performance.now();
   let calls = 0;
@@ -39,8 +41,7 @@ function median(values) {
   return sorted[Math.floor(sorted.length / 2)];
 }
 
-function measureTrials(fn, inputs) {
-  const samples = Array.from({ length: TRIALS }, () => measure(fn, inputs));
+function summarizeSamples(samples) {
   const opsSamples = samples.map(({ ops }) => ops);
   const ops = median(opsSamples);
 
@@ -50,6 +51,26 @@ function measureTrials(fn, inputs) {
     spreadPercent:
       ((Math.max(...opsSamples) - Math.min(...opsSamples)) / ops) * 100,
   };
+}
+
+function measureMethod(method, inputs) {
+  const samples = new Map(implementations.map(([name]) => [name, []]));
+
+  for (let trial = 0; trial < TRIALS; trial += 1) {
+    const order = [
+      ...implementations.slice(trial),
+      ...implementations.slice(0, trial),
+    ];
+
+    for (const [name, implementation] of order) {
+      samples.get(name).push(measure(implementation[method], inputs));
+    }
+  }
+
+  return implementations.map(([name]) => [
+    name,
+    summarizeSamples(samples.get(name)),
+  ]);
 }
 
 function printTable(rows) {
@@ -72,6 +93,11 @@ function printTable(rows) {
 }
 
 function main() {
+  if (typeof global.gc !== 'function') {
+    console.error('error: benchmark requires Node.js --expose-gc');
+    process.exitCode = 1;
+    return;
+  }
   const benchmarkStartedAt = performance.now();
   const hostnames = Array.from(
     new Set(
@@ -87,10 +113,7 @@ function main() {
   const warnings = [];
 
   for (const method of METHODS) {
-    const results = implementations.map(([name, implementation]) => [
-      name,
-      measureTrials(implementation[method], hostnames),
-    ]);
+    const results = measureMethod(method, hostnames);
     const baselineOps = results.find(([name]) => name === 'tldts')[1].ops;
 
     const rows = results.map(([name, result]) => {
@@ -127,9 +150,17 @@ function main() {
     printTable(rows);
     console.log();
   }
+  const totalDurationMs = performance.now() - benchmarkStartedAt;
   console.log(
-    `Total: ${((performance.now() - benchmarkStartedAt) / 1000).toFixed(2)} s`,
+    `Total: ${(totalDurationMs / 1000).toFixed(2)} s / ${(MAX_TOTAL_DURATION_MS / 1000).toFixed(2)} s max`,
   );
+
+  if (totalDurationMs > MAX_TOTAL_DURATION_MS) {
+    console.error(
+      `error: benchmark exceeded ${MAX_TOTAL_DURATION_MS / 1000} s runtime limit`,
+    );
+    process.exitCode = 1;
+  }
 
   for (const warning of warnings) {
     console.warn(
