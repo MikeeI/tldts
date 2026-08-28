@@ -5,7 +5,7 @@ requests.json:
 	curl https://cdn.cliqz.com/adblocking/requests_top500.json.gz | gunzip > requests.json
 
 run: requests.json
-	NODE_ENV=production node --expose-gc benchmark.js
+	NODE_ENV=production node --expose-gc -r ts-node/register benchmark.ts
 
 allocations: requests.json
 	NODE_ENV=production node --expose-gc --predictable allocations.js
