@@ -110,6 +110,14 @@ export default function suffixLookup(
 
   const { allowIcannDomains, allowPrivateDomains } = options;
 
+  if (!allowIcannDomains && !allowPrivateDomains) {
+    out.isIcann = false;
+    out.isPrivate = false;
+    const lastDot = hostname.lastIndexOf('.');
+    out.publicSuffix = lastDot === -1 ? hostname : hostname.slice(lastDot + 1);
+    return;
+  }
+
   // Keep track of longest match
   let matchIndex = -1;
   let matchKind = Result.NO_MATCH;
@@ -259,12 +267,12 @@ export default function suffixLookup(
   // was *.com, we would have stored only 'com' in the packed structure and we
   // need to take one extra label on the left.
   if ((matchKind & Result.WILDCARD_MATCH) !== 0) {
-    if (matchLabels < numberOfHashes) {
+    if (matchLabels <= numberOfHashes) {
       out.publicSuffix = hostname.slice(BUFFER[((matchLabels - 1) << 1) + 1]);
       return;
     }
 
-    // matchLabels >= numberOfHashes: the suffix may extend past the labels we
+    // matchLabels > numberOfHashes: the suffix may extend past the labels we
     // tracked in BUFFER, so locate its start by scanning backward for the
     // matchLabels-th dot from the end (no array alloc, no O(n^2) shift). Fewer
     // dots than matchLabels means the whole hostname is the suffix.

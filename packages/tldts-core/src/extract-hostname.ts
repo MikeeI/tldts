@@ -120,6 +120,17 @@ export default function extractHostname(
       end -= 1;
     }
 
+    let indexOfIdentifier = -1;
+    let indexOfClosingBracket = -1;
+    let indexOfPort = -1;
+    let indexOfFirstColon = -1;
+    let hasControl = false;
+    let vValid = validate; // seeded true when validating; cleared on the first invalid char
+    let vLastDot = start - 1; // mirrors is-valid.ts `lastDotIndex = -1` at host start
+    let vLastCode = -1;
+    let authorityScanStart = start;
+    let authorityPrefixScanned = false;
+
     if (
       url.charCodeAt(start) === 47 /* '/' */ &&
       url.charCodeAt(start + 1) === 47 /* '/' */
@@ -200,6 +211,7 @@ export default function extractHostname(
         // user@host, a slash-less special scheme ("https:host"), or an opaque
         // URI ("mailto:", "tel:", "urn:…").
         let indexOfColon = -1;
+        let probeEnd = end;
         for (let i = start; i < end; i += 1) {
           const code = url.charCodeAt(i);
           if (code === 9 || code === 10 || code === 13) {
@@ -214,11 +226,71 @@ export default function extractHostname(
             break;
           }
           if (code === 47 || code === 92 || code === 63 || code === 35) {
+            probeEnd = i;
             break;
+          }
+
+          // The cold probe is also the authority scan when it finds no colon.
+          // Reuse identifier/bracket, colon/port, uppercase, and inline-
+          // validation state so host characters before the first delimiter are
+          // not read a second time.
+          if (code === 64 /* '@' */) {
+            indexOfIdentifier = i;
+            indexOfFirstColon = -1; // colons before '@' are userinfo
+          } else if (code === 93 /* ']' */) {
+            indexOfClosingBracket = i;
+          } else if (code >= 65 && code <= 90) {
+            hasUpper = true;
+          } else if (
+            code >= 64 &&
+            validate &&
+            !(/*@__INLINE__*/ isValidHostnameChar(code))
+          ) {
+            // >= 64, not '@'/']'/upper: valid only if a-z, '_', or non-ASCII.
+            vValid = false;
+          }
+          if (validate) {
+            if (code < 64) {
+              if (code === 46 /* '.' */) {
+                if (i - vLastDot > 64 || vLastCode === 46 || vLastCode === 45) {
+                  vValid = false;
+                }
+                vLastDot = i;
+              } else if (code < 48 || code > 57) {
+                // < 64 and not a delimiter/dot/digit => only '-' (45) is a
+                // valid host char here; everything else is invalid.
+                if (code !== 45 || vLastCode === 46 /* label-leading '-' */) {
+                  vValid = false;
+                }
+              }
+            }
+            vLastCode = code;
           }
         }
 
-        if (indexOfColon !== -1) {
+        if (indexOfColon === -1) {
+          authorityScanStart = probeEnd;
+          authorityPrefixScanned = true;
+
+          // A backslash is a delimiter only for special URLs. This path has no
+          // scheme, so resume at it and let the common scan preserve that rule.
+          if (probeEnd < end && url.charCodeAt(probeEnd) !== 92 /* '\' */) {
+            end = probeEnd;
+          }
+        } else {
+          // The probe state is discarded when a colon requires the full
+          // authority scan; ordinary scheme paths retain their original setup.
+          hasUpper = false;
+          indexOfIdentifier = -1;
+          indexOfClosingBracket = -1;
+          indexOfPort = -1;
+          indexOfFirstColon = -1;
+          hasControl = false;
+          vValid = validate;
+          vLastDot = start - 1;
+          vLastCode = -1;
+          authorityScanStart = start;
+
           // An '@' before the next delimiter => the ':' is userinfo, not a
           // scheme ("user:pass@host", "mailto:a@b"): keep the whole authority.
           let hasIdentifier = false;
@@ -311,6 +383,12 @@ export default function extractHostname(
       }
     }
 
+    if (!authorityPrefixScanned) {
+      authorityScanStart = start;
+      vLastDot = start - 1;
+      vLastCode = -1;
+    }
+
     // Find the host's end: first '/', '?' or '#' (and '\' for special URLs,
     // which WHATWG treats like '/'). Track the last '@', ']' and ':' for
     // userinfo, ipv6 and port, plus the first ':' of the host (reset at each
@@ -323,14 +401,6 @@ export default function extractHostname(
     // `vValid` only stays meaningful for a "simple" authority (no userinfo, port,
     // brackets, control or trailing dot); those cases clear it / are rejected by
     // the guard below, falling back to `isValidHostname`.
-    let indexOfIdentifier = -1;
-    let indexOfClosingBracket = -1;
-    let indexOfPort = -1;
-    let indexOfFirstColon = -1;
-    let hasControl = false;
-    let vValid = validate; // seeded true when validating; cleared on the first invalid char
-    let vLastDot = start - 1; // mirrors is-valid.ts `lastDotIndex = -1` at host start
-    let vLastCode = -1;
     if (validate && start < end) {
       // First-char rule: must be a valid host char, '.', or '_' (NOT '-').
       const c0 = url.charCodeAt(start);
@@ -347,7 +417,7 @@ export default function extractHostname(
         vValid = false;
       }
     }
-    for (let i = start; i < end; i += 1) {
+    for (let i = authorityScanStart; i < end; i += 1) {
       const code: number = url.charCodeAt(i);
       if (code < 64) {
         if (code === 47 || code === 35 || code === 63) {

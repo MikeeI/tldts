@@ -59,6 +59,7 @@ for (let node = 0, offset = 0; node < numberOfNodes; node += 1) {
 let matchNode = -1;
 let matchStart = 0;
 let matchEnd = 0;
+let lastDot = -1;
 
 /**
  * True if edge `edge`'s label equals `hostname[start, start + length)`.
@@ -125,9 +126,13 @@ function walk(hostname: string, root: number, allowedMask: number): boolean {
   let end = hostname.length;
   let hash = 5381;
   matchNode = -1;
+  lastDot = -1;
   for (let i = hostname.length - 1; i >= 0; i -= 1) {
     const code = hostname.charCodeAt(i);
     if (code === 46 /* '.' */) {
+      if (lastDot === -1) {
+        lastDot = i;
+      }
       const start = i + 1;
       let edge = findEdge(node, hash >>> 0, hostname, start, end - start);
       if (edge === -1) {
@@ -183,6 +188,14 @@ export default function suffixLookup(
     (options.allowPrivateDomains ? RULE_TYPE.PRIVATE : 0) |
     (options.allowIcannDomains ? RULE_TYPE.ICANN : 0);
 
+  if (allowedMask === 0) {
+    out.isIcann = false;
+    out.isPrivate = false;
+    const lastDot = hostname.lastIndexOf('.');
+    out.publicSuffix = lastDot === -1 ? hostname : hostname.slice(lastDot + 1);
+    return;
+  }
+
   // Exceptions have priority and strip their own left-most label (e.g. the
   // rule '!www.ck' makes the suffix of 'www.ck' be 'ck').
   if (walk(hostname, exceptionsRoot, allowedMask)) {
@@ -202,6 +215,5 @@ export default function suffixLookup(
   // No match: the prevailing '*' rule makes the right-most label the suffix.
   out.isIcann = false;
   out.isPrivate = false;
-  const lastDot = hostname.lastIndexOf('.');
   out.publicSuffix = lastDot === -1 ? hostname : hostname.slice(lastDot + 1);
 }

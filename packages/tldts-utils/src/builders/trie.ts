@@ -21,7 +21,7 @@
  * node is a public-suffix match. See `suffix-trie.ts`.
  */
 
-import parse from '../parser';
+import parse, { type IRule } from '../parser';
 
 interface ITrie {
   flag: 0 | 1 | 2;
@@ -59,9 +59,15 @@ function labelHash(label: string): number {
   return hash >>> 0;
 }
 
+interface FlatEdge {
+  label: string;
+  child: number;
+  hash: number;
+}
+
 interface FlatNode {
   flag: 0 | 1 | 2;
-  edges: { label: string; child: number }[];
+  edges: FlatEdge[];
 }
 
 /**
@@ -75,7 +81,11 @@ function flatten(roots: ITrie[]): { nodes: FlatNode[]; rootIds: number[] } {
   const visit = (node: ITrie): number => {
     const edges = Object.keys(node.children)
       .sort()
-      .map((label) => ({ label, child: visit(node.children[label]!) }));
+      .map((label) => ({
+        label,
+        child: visit(node.children[label]!),
+        hash: labelHash(label),
+      }));
 
     // Identity key for DAWG dedup: same flag + same (label -> child) set. Built
     // from the alpha-sorted edges so it is canonical; the stored copy is then
@@ -83,7 +93,7 @@ function flatten(roots: ITrie[]): { nodes: FlatNode[]; rootIds: number[] } {
     const key = `${node.flag}|${edges.map((e) => `${e.label}>${e.child}`).join(',')}`;
     let id = idByKey.get(key);
     if (id === undefined) {
-      edges.sort((a, b) => labelHash(a.label) - labelHash(b.label));
+      edges.sort((a, b) => a.hash - b.hash);
       id = nodes.length;
       nodes.push({ flag: node.flag, edges });
       idByKey.set(key, id);
@@ -94,23 +104,29 @@ function flatten(roots: ITrie[]): { nodes: FlatNode[]; rootIds: number[] } {
   return { nodes, rootIds: roots.map(visit) };
 }
 
-export default (
-  body: string,
-  { includePrivate }: { includePrivate: boolean },
-): string => {
-  const rules: ITrie = { flag: 0, children: {} };
-  const exceptions: ITrie = { flag: 0, children: {} };
+function createTries(): [ITrie, ITrie] {
+  return [
+    { flag: 0, children: {} },
+    { flag: 0, children: {} },
+  ];
+}
 
-  parse(body, ({ rule, isIcann, isException }) => {
-    if (isIcann || includePrivate) {
-      insertInTrie(
-        { isIcann, parts: rule.split('.').reverse() },
-        isException ? exceptions : rules,
-      );
-    }
-  });
+function insertRule(
+  { rule, isIcann, isException }: IRule,
+  includePrivate: boolean,
+  rules: ITrie,
+  exceptions: ITrie,
+): void {
+  if (isIcann || includePrivate) {
+    insertInTrie(
+      { isIcann, parts: rule.split('.').reverse() },
+      isException ? exceptions : rules,
+    );
+  }
+}
 
-  const { nodes, rootIds } = flatten([rules, exceptions]);
+function serializeTries(roots: ITrie[]): string {
+  const { nodes, rootIds } = flatten(roots);
 
   const nodeFlags: number[] = [];
   const edgeStart: number[] = [0];
@@ -166,4 +182,32 @@ export const labelText = ${JSON.stringify(labelText)};
 export const rulesRoot = ${rootIds[0]};
 export const exceptionsRoot = ${rootIds[1]};
 `;
+}
+
+export default (
+  body: string,
+  { includePrivate }: { includePrivate: boolean },
+  collect?: (rule: IRule) => void,
+): string => {
+  const [rules, exceptions] = createTries();
+
+  parse(
+    body,
+    (parsedRule) => {
+      insertRule(parsedRule, includePrivate, rules, exceptions);
+    },
+    collect,
+  );
+  return serializeTries([rules, exceptions]);
 };
+
+export function buildTrieFromRules(
+  parsedRules: readonly IRule[],
+  { includePrivate }: { includePrivate: boolean },
+): string {
+  const [rules, exceptions] = createTries();
+  for (const parsedRule of parsedRules) {
+    insertRule(parsedRule, includePrivate, rules, exceptions);
+  }
+  return serializeTries([rules, exceptions]);
+}

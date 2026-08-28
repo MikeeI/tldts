@@ -2,29 +2,31 @@ import { writeFileSync } from 'fs';
 
 import findBaseDir from './find-base-dir';
 import loadPublicSuffixList from './list';
-import buildHashes from './builders/hashes';
-import buildTrie from './builders/trie';
+import { buildHashesFromRules } from './builders/hashes';
+import buildTrie, { buildTrieFromRules } from './builders/trie';
+import type { IRule } from './parser';
 
 export default function () {
   console.log('Updating rules...');
   const publicSuffixList = loadPublicSuffixList();
+  const parsedRules: IRule[] = [];
 
   // Build trie and update TypeScript file
-  writeFileSync(
-    findBaseDir('./tldts/src/data/trie.ts'),
-    buildTrie(publicSuffixList, { includePrivate: true }),
-    'utf-8',
-  );
+  const trie = buildTrie(publicSuffixList, { includePrivate: true }, (rule) => {
+    parsedRules.push(rule);
+  });
+  writeFileSync(findBaseDir('./tldts/src/data/trie.ts'), trie, 'utf-8');
 
   // Build trie and update TypeScript file (ICANN only)
+  const icannTrie = buildTrieFromRules(parsedRules, { includePrivate: false });
   writeFileSync(
     findBaseDir('./tldts-icann/src/data/trie.ts'),
-    buildTrie(publicSuffixList, { includePrivate: false }),
+    icannTrie,
     'utf-8',
   );
 
   // Build hashes and update TypeScript file
-  const packed = buildHashes(publicSuffixList);
+  const packed = buildHashesFromRules(parsedRules);
   writeFileSync(
     findBaseDir('./tldts-experimental/src/data/hashes.ts'),
     `

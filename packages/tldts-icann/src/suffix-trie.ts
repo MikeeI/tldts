@@ -56,6 +56,7 @@ for (let node = 0, offset = 0; node < numberOfNodes; node += 1) {
 let matchStart = 0;
 let matchEnd = 0;
 let matched = false;
+let lastDot = -1;
 
 /**
  * True if edge `edge`'s label equals `hostname[start, start + length)`.
@@ -122,9 +123,13 @@ function walk(hostname: string, root: number): boolean {
   let end = hostname.length;
   let hash = 5381;
   matched = false;
+  lastDot = -1;
   for (let i = hostname.length - 1; i >= 0; i -= 1) {
     const code = hostname.charCodeAt(i);
     if (code === 46 /* '.' */) {
+      if (lastDot === -1) {
+        lastDot = i;
+      }
       const start = i + 1;
       let edge = findEdge(node, hash >>> 0, hostname, start, end - start);
       if (edge === -1) {
@@ -189,6 +194,5 @@ export default function suffixLookup(
   }
 
   // No match: the prevailing '*' rule makes the right-most label the suffix.
-  const lastDot = hostname.lastIndexOf('.');
   out.publicSuffix = lastDot === -1 ? hostname : hostname.slice(lastDot + 1);
 }

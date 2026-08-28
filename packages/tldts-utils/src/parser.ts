@@ -8,10 +8,20 @@ export interface IRule {
   rule: string;
 }
 
+type RuleCollector = (rule: IRule) => void;
+
 /**
  * Parse public suffix list and invoke callback on each rule.
  */
-export default (body: string, cb: (_: IRule) => void) => {
+export default (
+  body: string,
+  cb: (_: IRule) => void,
+  collect?: RuleCollector,
+) => {
+  const emit = (rule: IRule): void => {
+    cb(rule);
+    collect?.(rule);
+  };
   const beginPrivateDomains = '// ===begin private domains===';
   let isIcann = true;
 
@@ -55,7 +65,7 @@ export default (body: string, cb: (_: IRule) => void) => {
     // runtime.
     const encoded = toASCII(line);
     if (line !== encoded) {
-      cb({
+      emit({
         isException,
         isIcann,
         isNormal,
@@ -64,7 +74,7 @@ export default (body: string, cb: (_: IRule) => void) => {
       });
     }
 
-    cb({
+    emit({
       isException,
       isIcann,
       isNormal,

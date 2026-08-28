@@ -84,7 +84,7 @@
  * 4. Hash can be computed on-the-fly from end to start without any string copy
  */
 
-import parse from '../parser';
+import parse, { type IRule } from '../parser';
 
 /**
  * Compute 32 bits hash of `str` backward.
@@ -102,71 +102,80 @@ interface IRules {
   priv: number[][];
 }
 
-/**
- * Build packed typed array given the raw public list as a string.
- */
-export default (body: string) => {
-  const rules: IRules = {
-    icann: [],
-    priv: [],
+interface HashRules {
+  rules: IRules;
+  wildcards: IRules;
+  exceptions: IRules;
+  maximumNumberOfLabels: number;
+}
+
+function createHashRules(): HashRules {
+  return {
+    rules: { icann: [], priv: [] },
+    wildcards: { icann: [], priv: [] },
+    exceptions: { icann: [], priv: [] },
+    maximumNumberOfLabels: 0,
   };
-  const wildcards: IRules = {
-    icann: [],
-    priv: [],
-  };
-  const exceptions: IRules = {
-    icann: [],
-    priv: [],
-  };
+}
 
-  // Keep track of maximum number of labels seen in a given rule. This allows us
-  // to make sure that all sections of the typed array (wildcards, exceptions
-  // and normal rules) have the same size and we do not need to check that while
-  // matching.
-  let maximumNumberOfLabels = 0;
+function addRule(
+  { rule, isIcann, isException, isWildcard, isNormal }: IRule,
+  hashRules: HashRules,
+): void {
+  // Select correct section to insert the rule
+  let hashesPerLabels = null;
+  if (isException) {
+    hashesPerLabels = isIcann
+      ? hashRules.exceptions.icann
+      : hashRules.exceptions.priv;
+  } else if (isWildcard) {
+    hashesPerLabels = isIcann
+      ? hashRules.wildcards.icann
+      : hashRules.wildcards.priv;
+    rule = rule.slice(2);
+  } else if (isNormal) {
+    hashesPerLabels = isIcann ? hashRules.rules.icann : hashRules.rules.priv;
+  }
 
-  // Iterate on public suffix rules
-  parse(body, ({ rule, isIcann, isException, isWildcard, isNormal }) => {
-    // Select correct section to insert the rule
-    let hashesPerLabels = null;
-    if (isException) {
-      hashesPerLabels = isIcann ? exceptions.icann : exceptions.priv;
-    } else if (isWildcard) {
-      hashesPerLabels = isIcann ? wildcards.icann : wildcards.priv;
-      rule = rule.slice(2);
-    } else if (isNormal) {
-      hashesPerLabels = isIcann ? rules.icann : rules.priv;
-    }
+  if (hashesPerLabels === null) {
+    return;
+  }
 
-    if (hashesPerLabels === null) {
-      return;
-    }
+  // Count number of labels in this suffix
+  const numberOfLabels = rule.split('.').length;
 
-    // Count number of labels in this suffix
-    const numberOfLabels = rule.split('.').length;
+  // Experimentally, we start ignoring suffixes with only one label since the
+  // fallback to '*' will yield the same result. This helps reduce the size of
+  // the bundle further and speed-up matching. One potential side-effect is
+  // that we might not accurately return the information about if a suffix is
+  // from the ICANN or PRIVATE section.
+  if (
+    numberOfLabels === 1 &&
+    (hashesPerLabels === hashRules.rules.icann ||
+      hashesPerLabels === hashRules.rules.priv)
+  ) {
+    return;
+  }
 
-    // Experimentally, we start ignoring suffixes with only one label since the
-    // fallback to '*' will yield the same result. This helps reduce the size of
-    // the bundle further and speed-up matching. One potential side-effect is
-    // that we might not accurately return the information about if a suffix is
-    // from the ICANN or PRIVATE section.
-    if (
-      numberOfLabels === 1 &&
-      (hashesPerLabels === rules.icann || hashesPerLabels === rules.priv)
-    ) {
-      return;
-    }
+  hashRules.maximumNumberOfLabels = Math.max(
+    hashRules.maximumNumberOfLabels,
+    numberOfLabels,
+  );
+  let hashesForLabel = hashesPerLabels[numberOfLabels];
+  if (hashesForLabel === undefined) {
+    hashesForLabel = [];
+    hashesPerLabels[numberOfLabels] = hashesForLabel;
+  }
 
-    maximumNumberOfLabels = Math.max(maximumNumberOfLabels, numberOfLabels);
-    let hashesForLabel = hashesPerLabels[numberOfLabels];
-    if (hashesForLabel === undefined) {
-      hashesForLabel = [];
-      hashesPerLabels[numberOfLabels] = hashesForLabel;
-    }
+  hashesForLabel.push(fastHash(rule));
+}
 
-    hashesForLabel.push(fastHash(rule));
-  });
-
+function packHashes({
+  rules,
+  wildcards,
+  exceptions,
+  maximumNumberOfLabels,
+}: HashRules): Uint32Array {
   // Pack everything together
   const chunks: number[][] = [];
   const pushHashes = (hashes: number[] = []) => {
@@ -197,4 +206,29 @@ export default (body: string) => {
     maximumNumberOfLabels,
     ...([] as number[]).concat(...chunks),
   ]);
+}
+
+/**
+ * Build packed typed array given the raw public list as a string.
+ */
+export default (body: string, collect?: (rule: IRule) => void): Uint32Array => {
+  const hashRules = createHashRules();
+  parse(
+    body,
+    (parsedRule) => {
+      addRule(parsedRule, hashRules);
+    },
+    collect,
+  );
+  return packHashes(hashRules);
 };
+
+export function buildHashesFromRules(
+  parsedRules: readonly IRule[],
+): Uint32Array {
+  const hashRules = createHashRules();
+  for (const parsedRule of parsedRules) {
+    addRule(parsedRule, hashRules);
+  }
+  return packHashes(hashRules);
+}
