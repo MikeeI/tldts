@@ -12,7 +12,9 @@ const implementations = [
 
 const METHODS = ['getDomain', 'getPublicSuffix', 'getSubdomain'];
 const MAX_INPUTS = 10_000;
-const SAMPLE_DURATION_MS = 750;
+const SAMPLE_DURATION_MS = 500;
+const TRIALS = 3;
+const HIGH_SPREAD_PERCENT = 15;
 
 function measure(fn, inputs) {
   for (const input of inputs) fn(input);
@@ -32,13 +34,38 @@ function measure(fn, inputs) {
   };
 }
 
+function median(values) {
+  const sorted = [...values].sort((left, right) => left - right);
+  return sorted[Math.floor(sorted.length / 2)];
+}
+
+function measureTrials(fn, inputs) {
+  const samples = Array.from({ length: TRIALS }, () => measure(fn, inputs));
+  const opsSamples = samples.map(({ ops }) => ops);
+  const ops = median(opsSamples);
+
+  return {
+    elapsedMs: samples.reduce((total, sample) => total + sample.elapsedMs, 0),
+    ops,
+    spreadPercent:
+      ((Math.max(...opsSamples) - Math.min(...opsSamples)) / ops) * 100,
+  };
+}
+
 function printTable(rows) {
-  const widths = [16, 14, 14, 10, 10];
+  const widths = [16, 14, 14, 14, 10, 10];
   const align = (value, index) =>
     index === 0 ? value.padEnd(widths[index]) : value.padStart(widths[index]);
   const printRow = (values) => console.log(values.map(align).join('  '));
 
-  printRow(['Implementation', 'ops/s', 'Time/op', 'Sample', 'vs tldts']);
+  printRow([
+    'Implementation',
+    'Median ops/s',
+    'Median Time/op',
+    'Trials',
+    'Spread',
+    'vs tldts',
+  ]);
   printRow(widths.map((width) => '-'.repeat(width)));
 
   for (const row of rows) printRow(row);
@@ -57,23 +84,33 @@ function main() {
     ),
   ).slice(0, MAX_INPUTS);
   const groups = [];
+  const warnings = [];
 
   for (const method of METHODS) {
     const results = implementations.map(([name, implementation]) => [
       name,
-      measure(implementation[method], hostnames),
+      measureTrials(implementation[method], hostnames),
     ]);
     const baselineOps = results.find(([name]) => name === 'tldts')[1].ops;
 
     const rows = results.map(([name, result]) => {
       const relative = ((result.ops - baselineOps) / baselineOps) * 100;
       const sign = relative >= 0 ? '+' : '';
+      if (result.spreadPercent > HIGH_SPREAD_PERCENT) {
+        warnings.push({
+          implementation: name,
+          method,
+          spreadPercent: result.spreadPercent,
+        });
+      }
 
+      const averageSampleSeconds = result.elapsedMs / TRIALS / 1000;
       return [
         name,
         Math.floor(result.ops).toLocaleString('en-US'),
         `${(1_000_000_000 / result.ops).toFixed(2)} ns`,
-        `${(result.elapsedMs / 1000).toFixed(2)} s`,
+        `${TRIALS} × ${averageSampleSeconds.toFixed(2)} s`,
+        `${result.spreadPercent.toFixed(2)}%`,
         name === 'tldts' ? 'baseline' : `${sign}${relative.toFixed(2)}%`,
       ];
     });
@@ -82,7 +119,7 @@ function main() {
   }
 
   console.log(
-    `Benchmark: ${hostnames.length.toLocaleString('en-US')} hostnames · ${SAMPLE_DURATION_MS} ms sample`,
+    `Benchmark: ${hostnames.length.toLocaleString('en-US')} hostnames · ${TRIALS} trials × ${SAMPLE_DURATION_MS} ms`,
   );
   console.log();
   for (const [method, rows] of groups) {
@@ -93,6 +130,18 @@ function main() {
   console.log(
     `Total: ${((performance.now() - benchmarkStartedAt) / 1000).toFixed(2)} s`,
   );
+
+  for (const warning of warnings) {
+    console.warn(
+      [
+        'warning: high benchmark spread',
+        `method=${warning.method}`,
+        `implementation=${warning.implementation}`,
+        `spread=${warning.spreadPercent.toFixed(2)}%`,
+        `threshold=${HIGH_SPREAD_PERCENT.toFixed(2)}%`,
+      ].join(' '),
+    );
+  }
 }
 
 main();
