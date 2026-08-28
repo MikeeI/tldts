@@ -98,16 +98,8 @@ tldts.parse('https://spark-public.s3.amazonaws.com/dataanalysis/loansData.csv');
 //   publicSuffix: 'com',
 //   subdomain: 'spark-public.s3' }
 
-tldts.parse(
-  'https://spark-public.s3.amazonaws.com/dataanalysis/loansData.csv',
-  { allowPrivateDomains: true },
-);
-// { domain: 'spark-public.s3.amazonaws.com',
-//   domainWithoutSuffix: 'spark-public',
-//   hostname: 'spark-public.s3.amazonaws.com',
-//   isIp: false,
-//   publicSuffix: 's3.amazonaws.com',
-//   subdomain: '' }
+tldts-icann contains only ICANN rules; `allowPrivateDomains` cannot enable private
+suffixes such as `s3.amazonaws.com`.
 
 tldts.parse('gopher://domain.unknown/');
 // { domain: 'domain.unknown',
