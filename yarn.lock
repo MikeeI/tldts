@@ -2205,6 +2205,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/tldjs@npm:^2":
+  version: 2.3.4
+  resolution: "@types/tldjs@npm:2.3.4"
+  checksum: 10c0/1e58a6f80273bcb09f54b2b08de1a9f46e4ce53bc33e5f259dda79268c5d9769fac4e59373f82f1d7b0143f878ac3074a91780ac27d93126de3e9f047597f384
+  languageName: node
+  linkType: hard
+
 "@typescript-eslint/eslint-plugin@npm:8.65.0":
   version: 8.65.0
   resolution: "@typescript-eslint/eslint-plugin@npm:8.65.0"
@@ -7598,7 +7605,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"punycode@npm:^2.1.0, punycode@npm:^2.3.1":
+"punycode@npm:^2.0.0, punycode@npm:^2.1.0, punycode@npm:^2.3.1":
   version: 2.3.1
   resolution: "punycode@npm:2.3.1"
   checksum: 10c0/14f76a8206bc3464f794fb2e3d3cc665ae416c01893ad7a02b23766eb07159144ee612ad67af5e84fa4479ccfe67678c4feb126b0485651b302babf66f04f9e9
@@ -8684,6 +8691,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"tldjs@npm:2.3.2":
+  version: 2.3.2
+  resolution: "tldjs@npm:2.3.2"
+  dependencies:
+    punycode: "npm:^2.0.0"
+  checksum: 10c0/2f77a376e2f0fb6e4ff2d1b92b89bb6078ede87a9170c18132e121421f5b9e19f6b98bef1f7e8c256111cf03a7426720580a1b7f50cb4a46de47b24a6d2d5644
+  languageName: node
+  linkType: hard
+
 "tldts-core@npm:^7.4.11, tldts-core@workspace:packages/tldts-core":
   version: 0.0.0-use.local
   resolution: "tldts-core@workspace:packages/tldts-core"
@@ -8752,6 +8768,7 @@ __metadata:
   resolution: "tldts-root@workspace:."
   dependencies:
     "@types/node": "npm:^26.1.0"
+    "@types/tldjs": "npm:^2"
     auto: "npm:^11.3.6"
     benchmark: "npm:^2.1.4"
     eslint: "npm:^9.39.2"
@@ -8760,6 +8777,8 @@ __metadata:
     lerna: "npm:^9.0.7"
     patch-package: "npm:^8.0.1"
     prettier: "npm:^3.8.1"
+    tldjs: "npm:2.3.2"
+    tldts-upstream: "npm:tldts@7.4.11"
     ts-node: "npm:^10.9.2"
     typescript: "npm:^5.9.3"
     typescript-eslint: "npm:^8.54.0"
@@ -8782,29 +8801,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"tldts-utils@npm:^7.4.11, tldts-utils@workspace:packages/tldts-utils":
-  version: 0.0.0-use.local
-  resolution: "tldts-utils@workspace:packages/tldts-utils"
-  dependencies:
-    "@rollup/plugin-node-resolve": "npm:^16.0.3"
-    "@rollup/plugin-typescript": "npm:^12.3.0"
-    "@types/chai": "npm:^5.2.3"
-    "@types/mocha": "npm:^10.0.10"
-    "@types/node": "npm:^26.1.0"
-    "@types/punycode": "npm:^2.1.4"
-    chai: "npm:^6.2.2"
-    nyc: "npm:^18.0.0"
-    punycode: "npm:^2.3.1"
-    rimraf: "npm:^6.1.2"
-    rollup: "npm:^4.57.1"
-    rollup-plugin-sourcemaps2: "npm:^0.5.4"
-    typescript: "npm:^5.9.3"
-  bin:
-    tldts-update-internal: bin/update.js
-  languageName: unknown
-  linkType: soft
-
-"tldts@workspace:packages/tldts":
+"tldts-upstream@npm:tldts@7.4.11, tldts@workspace:packages/tldts":
   version: 0.0.0-use.local
   resolution: "tldts@workspace:packages/tldts"
   dependencies:
@@ -8825,6 +8822,28 @@ __metadata:
     typescript: "npm:^5.9.3"
   bin:
     tldts: bin/cli.js
+  languageName: unknown
+  linkType: soft
+
+"tldts-utils@npm:^7.4.11, tldts-utils@workspace:packages/tldts-utils":
+  version: 0.0.0-use.local
+  resolution: "tldts-utils@workspace:packages/tldts-utils"
+  dependencies:
+    "@rollup/plugin-node-resolve": "npm:^16.0.3"
+    "@rollup/plugin-typescript": "npm:^12.3.0"
+    "@types/chai": "npm:^5.2.3"
+    "@types/mocha": "npm:^10.0.10"
+    "@types/node": "npm:^26.1.0"
+    "@types/punycode": "npm:^2.1.4"
+    chai: "npm:^6.2.2"
+    nyc: "npm:^18.0.0"
+    punycode: "npm:^2.3.1"
+    rimraf: "npm:^6.1.2"
+    rollup: "npm:^4.57.1"
+    rollup-plugin-sourcemaps2: "npm:^0.5.4"
+    typescript: "npm:^5.9.3"
+  bin:
+    tldts-update-internal: bin/update.js
   languageName: unknown
   linkType: soft
 

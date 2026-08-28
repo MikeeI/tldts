@@ -1,92 +1,72 @@
-const Benchmark = require('benchmark');
-const chalk = require('chalk');
-const { URL } = require('url');
-const fs = require('fs');
-const path = require('path');
-const tldtsDefault = require('tldts');
-const tldtsExperimental = require('tldts-experimental');
+const fs = require('node:fs');
+const path = require('node:path');
+const { performance } = require('node:perf_hooks');
+const { URL } = require('node:url');
+
+const implementations = [
+  ['current', require('../packages/tldts/dist/cjs/index.js')],
+  ['tldts', require('tldts-upstream')],
+  ['experimental', require('../packages/tldts-experimental/dist/cjs/index.js')],
+  ['tldjs', require('tldjs')],
+];
+
+const METHODS = ['getDomain', 'getPublicSuffix', 'getSubdomain'];
+const MAX_INPUTS = 10_000;
+const SAMPLE_DURATION_MS = 750;
+
+function measure(fn, inputs) {
+  for (const input of inputs) fn(input);
+
+  const startedAt = performance.now();
+  let calls = 0;
+
+  do {
+    for (const input of inputs) fn(input);
+    calls += inputs.length;
+  } while (performance.now() - startedAt < SAMPLE_DURATION_MS);
+
+  return (calls * 1000) / (performance.now() - startedAt);
+}
 
 function main() {
-  const urls = Array.from(
+  const hostnames = Array.from(
     new Set(
       fs
-        .readFileSync(path.resolve(__dirname, './requests.json'), {
-          encoding: 'utf-8',
-        })
+        .readFileSync(path.resolve(__dirname, 'requests.json'), 'utf8')
         .split(/[\n\r]+/g)
+        .filter(Boolean)
         .map(JSON.parse)
-        .map(({ url }) => url),
+        .map(({ url }) => new URL(url).hostname),
     ),
+  ).slice(0, MAX_INPUTS);
+
+  console.log(
+    `inputs=${hostnames.length} sample=${SAMPLE_DURATION_MS}ms implementations=current,tldts,experimental,tldjs`,
   );
-  const hostnames = Array.from(
-    new Set(urls.map((url) => new URL(url).hostname)),
-  );
 
-  function bench(name, args, fn) {
-    const suite = new Benchmark.Suite();
-    suite
-      .add(name, () => fn(args))
-      .on('cycle', (event) => {
-        console.log(
-          `  + ${name} ${Math.floor(event.target.hz * args.length)} ops/second`,
-        );
-      })
-      .run({ async: false });
-  }
+  for (const method of METHODS) {
+    const results = implementations.map(([name, implementation]) => [
+      name,
+      measure(implementation[method], hostnames),
+    ]);
+    const baselineOps = results.find(([name]) => name === 'tldts')[1];
 
-  function run(bundleName, tldts) {
-    console.log(bundleName);
-    for (const method of [
-      'parse',
-      'getHostname',
-      'getPublicSuffix',
-      'getDomain',
-      'getFullDomain',
-      'getSubdomain',
-    ]) {
-      console.log(`= ${chalk.bold(method)}`);
-      const fn = tldts[method];
+    for (const [name, ops] of results) {
+      const relative = ((ops - baselineOps) / baselineOps) * 100;
+      const sign = relative >= 0 ? '+' : '';
 
-      for (const options of [
-        undefined, // defaults
-        { validateHostname: false },
-        { validateHostname: false, detectIp: false, mixedInputs: false },
-      ]) {
-        bench(
-          `#${chalk.bold(method)}(url, ${chalk.underline(
-            JSON.stringify(options),
-          )})`,
-          urls,
-          (urls) => {
-            for (let i = 0; i < urls.length; i += 1) {
-              fn(urls[i], options);
-            }
-          },
-        );
-      }
-
-      for (const options of [
-        undefined, // defaults
-        { validateHostname: false },
-        { validateHostname: false, detectIp: false, extractHostname: false },
-      ]) {
-        bench(
-          `#${chalk.bold(method)}(hostname, ${chalk.underline(
-            JSON.stringify(options),
-          )})`,
-          hostnames,
-          (hostnames) => {
-            for (let i = 0; i < hostnames.length; i += 1) {
-              fn(hostnames[i], options);
-            }
-          },
-        );
-      }
+      console.log(
+        [
+          `method=${method}`,
+          `implementation=${name}`,
+          `ops=${Math.floor(ops)}`,
+          name === 'tldts'
+            ? 'relative=baseline'
+            : `relative=${sign}${relative.toFixed(2)}%`,
+        ].join(' '),
+      );
     }
   }
-
-  run('tldts-experimental', tldtsExperimental);
-  run('tldts', tldtsDefault);
 }
 
 main();
