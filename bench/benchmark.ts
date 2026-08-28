@@ -52,6 +52,12 @@ const FOCUS_PROFILE = {
   sampleDurationMs: 1_500,
   warmupDurationMs: 750,
 } as const;
+const QUICK_PROFILE = {
+  name: 'quick',
+  trials: 3,
+  sampleDurationMs: 200,
+  warmupDurationMs: 50,
+} as const;
 
 const OPTIONS_BY_GROUP = {
   url: [
@@ -87,7 +93,7 @@ interface Implementation {
 }
 
 interface Profile {
-  name: 'standard' | 'focus';
+  name: 'standard' | 'focus' | 'quick';
   sampleDurationMs: number;
   trials: number;
   warmupDurationMs: number;
@@ -168,11 +174,14 @@ function printHelp(): void {
 
 Without filters, the benchmark runs the original upstream method, input, and option matrix.
 Filters retain that matrix within the selected methods and groups and use longer measurements.
+Quick mode runs three short trials for the current implementation and
+getDomainWithoutSuffix unless a method is selected.
 
 Options:
   --method=<names>          Limit the matrix to comma-separated methods
   --group=<names>           Limit the matrix to url, hostname, or both
   --implementation=<names>  Limit the matrix to selected implementations
+  --quick                   Run a short current-implementation benchmark
   --help                    Show this help
 
 Methods:
@@ -180,6 +189,7 @@ Methods:
 
 Examples:
   yarn bench
+  yarn bench --quick
   yarn bench --implementation=current
   yarn bench --method=getDomain --implementation=current,tldts
   yarn bench --method=getDomain,getPublicSuffix --group=url
@@ -211,6 +221,7 @@ function parseCommandLine(): Command | null {
     help?: boolean;
     implementation?: string;
     method?: string;
+    quick?: boolean;
   };
 
   try {
@@ -220,6 +231,7 @@ function parseCommandLine(): Command | null {
         help: { type: 'boolean' },
         implementation: { type: 'string' },
         method: { type: 'string' },
+        quick: { type: 'boolean' },
       },
       strict: true,
     }));
@@ -238,13 +250,17 @@ function parseCommandLine(): Command | null {
 
   const requestedMethods = values.method
     ? parseList(values.method)
-    : [...FULL_METHODS];
+    : values.quick
+      ? ['getDomainWithoutSuffix']
+      : [...FULL_METHODS];
   const requestedGroups = values.group
     ? parseList(values.group)
     : [...INPUT_GROUPS];
   const requestedImplementations = values.implementation
     ? parseList(values.implementation)
-    : [...IMPLEMENTATION_NAMES];
+    : values.quick
+      ? ['current']
+      : [...IMPLEMENTATION_NAMES];
   const invalidMethod = requestedMethods.find(
     (method) => !isMethodName(method),
   );
@@ -276,8 +292,9 @@ function parseCommandLine(): Command | null {
     groups: requestedGroups.filter(isInputGroup),
     implementations: requestedImplementations.filter(isImplementationName),
     methods: requestedMethods.filter(isMethodName),
-    profile:
-      values.method || values.group || values.implementation
+    profile: values.quick
+      ? QUICK_PROFILE
+      : values.method || values.group || values.implementation
         ? FOCUS_PROFILE
         : STANDARD_PROFILE,
   };
