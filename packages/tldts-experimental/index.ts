@@ -69,6 +69,11 @@ export function getDomainWithoutSuffix(
   options?: Partial<IOptions>,
 ): string | null {
   /*@__INLINE__*/ resetResult(RESULT);
-  return parseImpl(url, FLAG.ALL, suffixLookup, options, RESULT)
-    .domainWithoutSuffix;
+  return parseImpl(
+    url,
+    FLAG.DOMAIN_WITHOUT_SUFFIX,
+    suffixLookup,
+    options,
+    RESULT,
+  ).domainWithoutSuffix;
 }

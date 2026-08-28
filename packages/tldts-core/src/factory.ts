@@ -81,6 +81,7 @@ export const enum FLAG {
   PUBLIC_SUFFIX,
   DOMAIN,
   SUB_DOMAIN,
+  DOMAIN_WITHOUT_SUFFIX,
   ALL,
 }
 
@@ -180,6 +181,13 @@ export function parseImpl(
   // Extract domain
   result.domain = getDomain(result.publicSuffix, result.hostname, options);
   if (step === FLAG.DOMAIN || result.domain === null) {
+    return result;
+  }
+  if (step === FLAG.DOMAIN_WITHOUT_SUFFIX) {
+    result.domainWithoutSuffix = getDomainWithoutSuffix(
+      result.domain,
+      result.publicSuffix,
+    );
     return result;
   }
 
